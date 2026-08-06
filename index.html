@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票策略看板 - 磊哥专用</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e4e4e7;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            padding: 30px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+        .header .subtitle { color: #a1a1aa; font-size: 1.1em; }
+        .update-time { color: #71717a; font-size: 0.9em; margin-top: 10px; }
+        .live-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #10b981;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+        .tab-nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 15px;
+        }
+        .tab-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #a1a1aa;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        .tab-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: #e4e4e7;
+        }
+        .tab-btn.active {
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            color: white;
+            border-color: transparent;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .strategy-section {
+            background: rgba(30, 30, 46, 0.8);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255,255,255,0.05);
+            backdrop-filter: blur(10px);
+        }
+        .strategy-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .strategy-title { display: flex; align-items: center; gap: 12px; }
+        .strategy-icon {
+            width: 40px; height: 40px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5em;
+        }
+        .icon-left { background: linear-gradient(135deg, #f59e0b, #ef4444); }
+        .icon-left10 { background: linear-gradient(135deg, #8b5cf6, #ec4899); }
+        .icon-ztb { background: linear-gradient(135deg, #10b981, #06b6d4); }
+        .strategy-name { font-size: 1.4em; font-weight: 600; }
+        .signal-count {
+            background: rgba(255,255,255,0.1);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            color: #a1a1aa;
+        }
+        .signal-count.has-signals {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        .signal-table { width: 100%; border-collapse: collapse; }
+        .signal-table th {
+            text-align: left;
+            padding: 12px 15px;
+            color: #a1a1aa;
+            font-weight: 500;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .signal-table td {
+            padding: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .signal-table tr:last-child td { border-bottom: none; }
+        .signal-table tr:hover { background: rgba(255,255,255,0.03); }
+        .stock-code {
+            font-family: 'SF Mono', Monaco, monospace;
+            color: #00d4ff;
+            font-weight: 500;
+        }
+        .stock-name { font-weight: 600; color: #f4f4f5; }
+        .price { font-family: 'SF Mono', Monaco, monospace; font-weight: 600; }
+        .price-up { color: #ef4444; }
+        .price-down { color: #10b981; }
+        .date-cell { color: #71717a; font-size: 0.9em; }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+        .badge-score { background: rgba(124, 58, 237, 0.2); color: #a78bfa; }
+        .badge-target { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .badge-stop { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .badge-wash { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .badge-shrink { background: rgba(6, 182, 212, 0.2); color: #22d3ee; }
+        .no-signals {
+            text-align: center;
+            padding: 40px;
+            color: #71717a;
+        }
+        .no-signals-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stat-label { color: #a1a1aa; font-size: 0.85em; margin-top: 5px; }
+        .auto-refresh {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            border-radius: 10px;
+            padding: 10px 15px;
+            font-size: 0.85em;
+            color: #10b981;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .refresh-dot {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        .countdown {
+            font-family: 'SF Mono', Monaco, monospace;
+            color: #71717a;
+        }
+        .month-selector {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding: 15px 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+        }
+        .month-selector label {
+            color: #a1a1aa;
+            font-size: 0.9em;
+        }
+        .month-selector select {
+            background: rgba(30, 30, 46, 0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #e4e4e7;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+        }
+        .month-selector select:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        @media (max-width: 768px) {
+            .header h1 { font-size: 1.8em; }
+            .strategy-section { padding: 15px; }
+            .signal-table { font-size: 0.85em; }
+            .signal-table th, .signal-table td { padding: 10px 8px; }
+            .tab-nav { flex-wrap: wrap; }
+            .tab-btn { flex: 1; min-width: 120px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 股票策略看板</h1>
+            <div class="subtitle">左侧扫描 × 涨停倍量阴</div>
+            <div class="update-time">
+                <span class="live-indicator"></span>
+                实时更新 | 数据更新: 2026-08-06 08:37:02 | 每60秒自动刷新
+            </div>
+        </div>
+        
+        <div class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab('current')">📡 当前信号</button>
+            <button class="tab-btn" onclick="switchTab('history')">📅 月度统计</button>
+        </div>
+        
+        <!-- Tab 1: 当前信号 -->
+        <div id="tab-current" class="tab-content active">
+
+            <div class="strategy-section">
+                <div class="strategy-header">
+                    <div class="strategy-title">
+                        <div class="strategy-icon icon-left">📈</div>
+                        <div class="strategy-name">左侧策略 V4d (20日)</div>
+                    </div>
+                    <div class="signal-count has-signals">2 只信号</div>
+                </div>
+
+                <table class="signal-table">
+                    <thead>
+                        <tr>
+                            <th>代码</th>
+                            <th>名称</th>
+                            <th>现价</th>
+                            <th>涨跌</th>
+                            <th>弧长</th>
+                            <th>跌幅</th>
+                            <th>量比</th>
+                            <th>R²</th>
+                            <th>评分</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+
+                <tr>
+                    <td class="stock-code">001308.SZ</td>
+                    <td class="stock-name">康冠科技</td>
+                    <td class="price">¥19.04</td>
+                    <td><span class="price-up">+0%</span></td>
+                    <td>24天</td>
+                    <td>23.4</td>
+                    <td><span class="badge badge-shrink">2.48</span></td>
+                    <td>0.942</td>
+                    <td><span class="badge badge-score">94</span></td>
+                </tr>
+
+                <tr>
+                    <td class="stock-code">600405.SH</td>
+                    <td class="stock-name">动力源</td>
+                    <td class="price">¥4.38</td>
+                    <td><span class="price-up">+0%</span></td>
+                    <td>17天</td>
+                    <td>27.0</td>
+                    <td><span class="badge badge-shrink">1.42</span></td>
+                    <td>0.939</td>
+                    <td><span class="badge badge-score">93</span></td>
+                </tr>
+
+                    </tbody>
+                </table>
+
+            </div>
+
+            <div class="strategy-section">
+                <div class="strategy-header">
+                    <div class="strategy-title">
+                        <div class="strategy-icon icon-left10">📉</div>
+                        <div class="strategy-name">左侧策略 10日 (预警)</div>
+                    </div>
+                    <div class="signal-count ">0 只信号</div>
+                </div>
+
+                <div class="no-signals">
+                    <div class="no-signals-icon">📭</div>
+                    <div>今日无信号</div>
+                </div>
+
+            </div>
+
+            <div class="strategy-section">
+                <div class="strategy-header">
+                    <div class="strategy-title">
+                        <div class="strategy-icon icon-ztb">🔥</div>
+                        <div class="strategy-name">涨停倍量阴</div>
+                    </div>
+                    <div class="signal-count has-signals">2 只信号</div>
+                </div>
+
+                <table class="signal-table">
+                    <thead>
+                        <tr>
+                            <th>代码</th>
+                            <th>名称</th>
+                            <th>现价</th>
+                            <th>涨跌</th>
+                            <th>目标价</th>
+                            <th>止损价</th>
+                            <th>缩量</th>
+                            <th>洗盘</th>
+                            <th>评分</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+
+                <tr>
+                    <td class="stock-code">605337.SH</td>
+                    <td class="stock-name">李子园</td>
+                    <td class="price">¥9.51</td>
+                    <td><span class="price-up">+0.32%</span></td>
+                    <td><span class="badge badge-target">¥10.27</span></td>
+                    <td><span class="badge badge-stop">¥9.03</span></td>
+                    <td><span class="badge badge-shrink">23.4%</span></td>
+                    <td><span class="badge badge-wash">4天</span></td>
+                    <td><span class="badge badge-score">75</span></td>
+                </tr>
+
+                <tr>
+                    <td class="stock-code">000736.SZ</td>
+                    <td class="stock-name">中交发展</td>
+                    <td class="price">¥4.45</td>
+                    <td><span class="price-up">+0.68%</span></td>
+                    <td><span class="badge badge-target">¥4.81</span></td>
+                    <td><span class="badge badge-stop">¥4.23</span></td>
+                    <td><span class="badge badge-shrink">36.0%</span></td>
+                    <td><span class="badge badge-wash">4天</span></td>
+                    <td><span class="badge badge-score">50</span></td>
+                </tr>
+
+                    </tbody>
+                </table>
+
+            </div>
+
+            <div class="strategy-section">
+                <div class="strategy-header">
+                    <div class="strategy-title">
+                        <div class="strategy-icon" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6);">📊</div>
+                        <div class="strategy-name">今日概览</div>
+                    </div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value">4</div>
+                        <div class="stat-label">总信号数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">2</div>
+                        <div class="stat-label">左侧20日</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">0</div>
+                        <div class="stat-label">左侧10日</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">2</div>
+                        <div class="stat-label">涨停倍量阴</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab 2: 月度统计 -->
+        <div id="tab-history" class="tab-content">
+            <div class="month-selector">
+                <label>选择月份：</label>
+                <select id="monthSelect" onchange="switchMonth(this.value)">
+                    <option value="2026-08" selected>2026-08</option>
+
+                </select>
+            </div>
+            <div id="monthly-content">
+
+            </div>
+        </div>
+    </div>
+    
+    <div class="auto-refresh">
+        <div class="refresh-dot"></div>
+        <span>自动刷新中</span>
+        <span class="countdown" id="countdown">60</span>
+        <span>秒</span>
+    </div>
+    
+    <script>
+        // 月度数据
+        const monthlyData = {"ztb": {"2026-08": [{"code": "605337", "ts_code": "605337.SH", "name": "李子园", "signal_date": "20260805", "t_date": "20260729", "d_date": "20260730", "wash": 4, "shrink": "23.4%", "price": 9.51, "chg": 0.32, "score": 75, "target_price": 10.27, "stop_loss": 9.03, "strategy_version": "V13"}, {"code": "000736", "ts_code": "000736.SZ", "name": "中交发展", "signal_date": "20260805", "t_date": "20260729", "d_date": "20260730", "wash": 4, "shrink": "36.0%", "price": 4.45, "chg": 0.68, "score": 50, "target_price": 4.81, "stop_loss": 4.23, "strategy_version": "V13"}]}, "left": {"2026-08": [{"date": "20260805", "code": "001308.SZ", "close": 19.04, "ma5": 17.94, "ma20": 17.71, "arc_days": 24, "r2": 0.942, "curv": 2.368, "peak": 21.65, "bottom": 16.58, "drop_pct": 23.4, "vol_ratio": 2.48, "mkt_bull": false, "score": 94, "ver": "v3-V4d", "name": "康冠科技"}, {"date": "20260805", "code": "600405.SH", "close": 4.38, "ma5": 4.18, "ma20": 4.15, "arc_days": 17, "r2": 0.939, "curv": 2.912, "peak": 5.07, "bottom": 3.7, "drop_pct": 27.0, "vol_ratio": 1.42, "mkt_bull": false, "score": 93, "ver": "v3-V4d", "name": "动力源"}]}, "left_10day": {}};
+        
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('active');
+            });
+            document.getElementById('tab-' + tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        function switchMonth(month) {
+            renderMonthly(month);
+        }
+        
+        function renderMonthly(month) {
+            const container = document.getElementById('monthly-content');
+            const data = monthlyData;
+            
+            // 获取该月数据
+            const ztbData = (data.ztb && data.ztb[month]) || [];
+            const leftData = (data.left && data.left[month]) || [];
+            const left10Data = (data.left_10day && data.left_10day[month]) || [];
+            
+            let html = '';
+            
+            // 左侧策略V4d (20日)
+            html += '<div class="strategy-section">';
+            html += '<div class="strategy-header">';
+            html += '<div class="strategy-title"><div class="strategy-icon icon-left">📈</div>';
+            html += '<div class="strategy-name">左侧策略 V4d (20日) - ' + month + '</div></div>';
+            html += '<div class="signal-count ' + (leftData.length > 0 ? 'has-signals' : '') + '">' + leftData.length + ' 只信号</div>';
+            html += '</div>';
+            
+            if (leftData.length > 0) {
+                html += '<table class="signal-table"><thead><tr>';
+                html += '<th>日期</th><th>代码</th><th>名称</th><th>现价</th><th>弧长</th><th>跌幅</th><th>量比</th><th>R²</th><th>评分</th>';
+                html += '</tr></thead><tbody>';
+                leftData.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                leftData.forEach(item => {
+                    html += '<tr>';
+                    html += '<td class="date-cell">' + (item.date || '') + '</td>';
+                    html += '<td class="stock-code">' + (item.code || '') + '</td>';
+                    html += '<td class="stock-name">' + (item.name || '') + '</td>';
+                    html += '<td class="price">¥' + (item.close || 0) + '</td>';
+                    html += '<td>' + (item.arc_days || 0) + '天</td>';
+                    html += '<td>' + (item.drop_pct || 0) + '</td>';
+                    html += '<td><span class="badge badge-shrink">' + (item.vol_ratio || 0) + '</span></td>';
+                    html += '<td>' + (item.r2 || 0) + '</td>';
+                    html += '<td><span class="badge badge-score">' + (item.score || 0) + '</span></td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+            } else {
+                html += '<div class="no-signals"><div class="no-signals-icon">📭</div><div>本月无信号</div></div>';
+            }
+            html += '</div>';
+            
+            // 左侧策略10日
+            html += '<div class="strategy-section">';
+            html += '<div class="strategy-header">';
+            html += '<div class="strategy-title"><div class="strategy-icon icon-left10">📉</div>';
+            html += '<div class="strategy-name">左侧策略 10日 (预警) - ' + month + '</div></div>';
+            html += '<div class="signal-count ' + (left10Data.length > 0 ? 'has-signals' : '') + '">' + left10Data.length + ' 只信号</div>';
+            html += '</div>';
+            
+            if (left10Data.length > 0) {
+                html += '<table class="signal-table"><thead><tr>';
+                html += '<th>日期</th><th>代码</th><th>名称</th><th>现价</th><th>弧长</th><th>跌幅</th><th>量比</th><th>R²</th><th>评分</th>';
+                html += '</tr></thead><tbody>';
+                left10Data.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                left10Data.forEach(item => {
+                    html += '<tr>';
+                    html += '<td class="date-cell">' + (item.date || '') + '</td>';
+                    html += '<td class="stock-code">' + (item.code || '') + '</td>';
+                    html += '<td class="stock-name">' + (item.name || '') + '</td>';
+                    html += '<td class="price">¥' + (item.close || 0) + '</td>';
+                    html += '<td>' + (item.arc_days || 0) + '天</td>';
+                    html += '<td>' + (item.drop_pct || 0) + '</td>';
+                    html += '<td><span class="badge badge-shrink">' + (item.vol_ratio || 0) + '</span></td>';
+                    html += '<td>' + (item.r2 || 0) + '</td>';
+                    html += '<td><span class="badge badge-score">' + (item.score || 0) + '</span></td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+            } else {
+                html += '<div class="no-signals"><div class="no-signals-icon">📭</div><div>本月无信号</div></div>';
+            }
+            html += '</div>';
+            
+            // 涨停倍量阴
+            html += '<div class="strategy-section">';
+            html += '<div class="strategy-header">';
+            html += '<div class="strategy-title"><div class="strategy-icon icon-ztb">🔥</div>';
+            html += '<div class="strategy-name">涨停倍量阴 - ' + month + '</div></div>';
+            html += '<div class="signal-count ' + (ztbData.length > 0 ? 'has-signals' : '') + '">' + ztbData.length + ' 只信号</div>';
+            html += '</div>';
+            
+            if (ztbData.length > 0) {
+                html += '<table class="signal-table"><thead><tr>';
+                html += '<th>扫描日</th><th>代码</th><th>名称</th><th>现价</th><th>涨跌</th><th>目标价</th><th>止损价</th><th>缩量</th><th>洗盘</th><th>评分</th>';
+                html += '</tr></thead><tbody>';
+                ztbData.sort((a, b) => (b.signal_date || '').localeCompare(a.signal_date || ''));
+                ztbData.forEach(item => {
+                    const chg = item.chg || 0;
+                    const chgClass = chg >= 0 ? 'price-up' : 'price-down';
+                    const chgStr = chg >= 0 ? '+' + chg + '%' : chg + '%';
+                    html += '<tr>';
+                    html += '<td class="date-cell">' + (item.signal_date || '') + '</td>';
+                    html += '<td class="stock-code">' + (item.ts_code || '') + '</td>';
+                    html += '<td class="stock-name">' + (item.name || '') + '</td>';
+                    html += '<td class="price">¥' + (item.price || 0) + '</td>';
+                    html += '<td><span class="' + chgClass + '">' + chgStr + '</span></td>';
+                    html += '<td><span class="badge badge-target">¥' + (item.target_price || 0) + '</span></td>';
+                    html += '<td><span class="badge badge-stop">¥' + (item.stop_loss || 0) + '</span></td>';
+                    html += '<td><span class="badge badge-shrink">' + (item.shrink || '0%') + '</span></td>';
+                    html += '<td><span class="badge badge-wash">' + (item.wash || 0) + '天</span></td>';
+                    html += '<td><span class="badge badge-score">' + (item.score || 0) + '</span></td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+            } else {
+                html += '<div class="no-signals"><div class="no-signals-icon">📭</div><div>本月无信号</div></div>';
+            }
+            html += '</div>';
+            
+            // 本月统计
+            const totalMonthly = leftData.length + left10Data.length + ztbData.length;
+            html += '<div class="strategy-section">';
+            html += '<div class="strategy-header">';
+            html += '<div class="strategy-title"><div class="strategy-icon" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6);">📊</div>';
+            html += '<div class="strategy-name">本月统计</div></div>';
+            html += '</div>';
+            html += '<div class="stats-grid">';
+            html += '<div class="stat-card"><div class="stat-value">' + totalMonthly + '</div><div class="stat-label">总信号数</div></div>';
+            html += '<div class="stat-card"><div class="stat-value">' + leftData.length + '</div><div class="stat-label">左侧20日</div></div>';
+            html += '<div class="stat-card"><div class="stat-value">' + left10Data.length + '</div><div class="stat-label">左侧10日</div></div>';
+            html += '<div class="stat-card"><div class="stat-value">' + ztbData.length + '</div><div class="stat-label">涨停倍量阴</div></div>';
+            html += '</div></div>';
+            
+            container.innerHTML = html;
+        }
+        
+        // 初始化月度显示
+        renderMonthly(document.getElementById('monthSelect').value);
+        
+        // 倒计时
+        let seconds = 60;
+        const countdownEl = document.getElementById('countdown');
+        
+        setInterval(() => {
+            seconds--;
+            if (countdownEl) {
+                countdownEl.textContent = seconds;
+            }
+            if (seconds <= 0) {
+                seconds = 60;
+                location.reload();
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
